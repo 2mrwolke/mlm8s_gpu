@@ -10,7 +10,7 @@ Currently included:
 ## Requirements
 
 - TensorFlow **>= 2.12**
-- Python **>= 3.8**
+- Python **>= 3.9**
 
 ---
 
