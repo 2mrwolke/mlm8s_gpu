@@ -19,7 +19,6 @@ This makes randomness **reproducible and traceable**: for a fixed `(base_seed, b
 
 ## Requirements
 
-- Python 3.10+ (or whatever you support)
 - TensorFlow **>= 2.12**
 
 ### What it guarantees
