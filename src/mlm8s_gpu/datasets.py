@@ -244,7 +244,9 @@ class StatelessRngDataset:
         return self._resolved_seed_py
 
 
+"""
 # Example batch_generator (single RNG call per batch, fully vectorized, stable structure)
+
 def batch_generator(indices: tf.Tensor, seed: tf.Tensor) -> dict[str, tf.Tensor]:
     """
     indices: [B] int64
@@ -262,3 +264,4 @@ def batch_generator(indices: tf.Tensor, seed: tf.Tensor) -> dict[str, tf.Tensor]
         dtype=tf.float32,
     )
     return {"x": x, "x_sqrt": tf.sqrt(x)}
+"""    
