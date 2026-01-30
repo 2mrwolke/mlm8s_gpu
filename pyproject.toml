@@ -12,7 +12,6 @@ requires-python = ">=3.9"
 
 # PEP 639 / SPDX
 license = { text = "GPL-3.0-only" }
-license-files = ["LICENSE*"]
 
 keywords = ["tensorflow", "tf.data", "stateless", "rng", "reproducibility", "gpu"]
 classifiers = [
