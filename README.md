@@ -14,25 +14,6 @@ Currently included:
 
 ---
 
-## Install
-
-### From source (recommended)
-
-```bash
-pip install -e .
-```
-
-### Non-editable install
-
-```bash
-pip install .
-```
-
-> Project name in `pyproject.toml`: `mlm8s-gpu`  
-> Import name: `mlm8s_gpu`
-
----
-
 ## What `StatelessRngDataset` does
 
 It builds a dataset of **exactly `num_batches` elements**. Each element is one **batch** of size `batch_size`.
@@ -80,6 +61,25 @@ This class is a good fit for:
 
 - **Experiment provenance**  
   `base_seed=None` still supports full reproducibility by logging `resolved_seed_tuple()`.
+
+---
+
+## Install
+
+### From source (recommended)
+
+```bash
+pip install -e .
+```
+
+### Non-editable install
+
+```bash
+pip install .
+```
+
+> Project name in `pyproject.toml`: `mlm8s-gpu`  
+> Import name: `mlm8s_gpu`
 
 ---
 
