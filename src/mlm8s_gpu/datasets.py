@@ -244,24 +244,25 @@ class StatelessRngDataset:
         return self._resolved_seed_py
 
 
-"""
-# Example batch_generator (single RNG call per batch, fully vectorized, stable structure)
+if False:  # pragma: no cover
+    
+    # Example batch_generator (single RNG call per batch, fully vectorized, stable structure)
+    
+    def batch_generator(indices: tf.Tensor, seed: tf.Tensor) -> dict[str, tf.Tensor]:
+        """
+        indices: [B] int64
+        seed:    [2] int32 (one stateless seed per batch)
+        returns a stable dict structure.
 
-def batch_generator(indices: tf.Tensor, seed: tf.Tensor) -> dict[str, tf.Tensor]:
-    """
-    indices: [B] int64
-    seed:    [2] int32 (one stateless seed per batch)
-    returns a stable dict structure.
+        stateless_* ops are deterministic for fixed seed/shape.
+        """
+        B = tf.shape(indices)[0]
+        x = tf.random.stateless_uniform(
+            shape=[B, 32],
+            seed=seed,
+            minval=0.0,
+            maxval=1.0,
+            dtype=tf.float32,
+        )
+        return {"x": x, "x_sqrt": tf.sqrt(x)}
 
-    stateless_* ops are deterministic for fixed seed/shape.
-    """
-    B = tf.shape(indices)[0]
-    x = tf.random.stateless_uniform(
-        shape=[B, 32],
-        seed=seed,
-        minval=0.0,
-        maxval=1.0,
-        dtype=tf.float32,
-    )
-    return {"x": x, "x_sqrt": tf.sqrt(x)}
-"""    
