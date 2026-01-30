@@ -1,90 +1,78 @@
 # mlm8s_gpu
-GPU-Accelerated Prototyping
 
-## StatelessRngDataset
+Small TensorFlow utilities for reproducible, high-throughput prototyping.
 
-`StatelessRngDataset` is a small `tf.data` dataset *factory* for building **finite**, **on-the-fly generated** datasets using **TensorFlow stateless RNG**.
+Currently included:
+- **`StatelessRngDataset`**: a `tf.data.Dataset` factory for **finite**, **on-the-fly** batch generation using **TensorFlow stateless RNG**.
 
-Each dataset element is a *batch*. For batch `b`, the class derives a per-batch stateless seed from:
-- a **base seed** (`base_seed`), and
-- the **batch id** (`b`),
-
-then calls your generator as:
-
-```python
-samples = batch_generator(batch_indices, batch_seed)
-```
-
-This makes randomness **reproducible and traceable**: for a fixed `(base_seed, batch_id)` mapping and fixed shapes, the generated tensors are identical across reruns and robust to `tf.data` parallelism. If you allow parallel execution, **only the emission order may vary** unless you enable deterministic ordering.
+---
 
 ## Requirements
 
 - TensorFlow **>= 2.12**
-
-### What it guarantees
-
-- **Deterministic per-batch RNG** (stateless): the same `(base_seed, batch_id)` produces the same `batch_seed`, and therefore the same random tensors (given the same generator logic and shapes).
-- **Fixed dataset length**: `num_batches` is authoritative; optional cardinality assertion is supported.
-- **Parallelism-safe randomness**: increasing `num_parallel_calls` / `prefetch` won’t change the random numbers, because seeds do not depend on call order.
-
-### What it does *not* guarantee (important)
-
-- If your generator uses **stateful RNG** (e.g. `tf.random.uniform`), determinism is not guaranteed. Use `tf.random.stateless_*`.
-- If you run on GPU with non-deterministic kernels in your generator, you may still see nondeterminism unrelated to RNG.
-- With `deterministic_order=False` (default), **iteration order can vary** under parallel mapping; values per batch id are still deterministic.
+- Python **>= 3.8**
 
 ---
 
-## Minimal usage
+## Install
 
-```python
-import tensorflow as tf
-from mlm8s_gpu import StatelessRngDataset
+### From source (recommended)
 
-def batch_generator(indices: tf.Tensor, seed: tf.Tensor) -> dict[str, tf.Tensor]:
-    # indices: [B] int64, seed: [2] int32
-    B = tf.shape(indices)[0]
-    x = tf.random.stateless_uniform([B, 32], seed=seed, dtype=tf.float32)
-    y = tf.cast(tf.reduce_sum(x, axis=-1) > 16.0, tf.int32)  # example label
-    return {"x": x, "y": y, "idx": indices}
-
-ds = StatelessRngDataset(
-    batch_generator=batch_generator,
-    batch_size=256,
-    num_batches=1000,
-    base_seed=(123, 456),          # or int, or None
-    num_parallel_calls=tf.data.AUTOTUNE,
-    prefetch_buffer=tf.data.AUTOTUNE,
-    deterministic_order=True,      # set True for stable iteration order
-    xla_compile_generator=True,
-).as_dataset()
-
-for batch in ds.take(1):
-    print(batch["x"].shape, batch["y"].shape)
+```bash
+pip install -e .
 ```
 
-### Logging “random-by-default” runs
+### Non-editable install
 
-If you pass `base_seed=None`, a cryptographically strong random seed is chosen. You can log it for full reproducibility:
-
-```python
-factory = StatelessRngDataset(..., base_seed=None)
-print("resolved seed:", factory.resolved_seed_tuple())
-ds = factory.as_dataset()
+```bash
+pip install .
 ```
 
-Re-run later with `base_seed=factory.resolved_seed_tuple()`.
+> Project name in `pyproject.toml`: `mlm8s-gpu`  
+> Import name: `mlm8s_gpu`
 
 ---
 
-## Why this exists
+## What `StatelessRngDataset` does
 
-TensorFlow’s **stateless** RNG APIs are deterministic, but it’s easy to accidentally reintroduce nondeterminism via:
-- `tf.data` parallel execution (call order changes),
-- hidden RNG state in generators,
-- per-step “randomness” that’s hard to trace back.
+It builds a dataset of **exactly `num_batches` elements**. Each element is one **batch** of size `batch_size`.
 
-`StatelessRngDataset` forces the randomness boundary to be explicit: **seed in, tensors out**.
+For batch id `b` (0-based), it computes:
+
+- `indices`: `[b*B, b*B + 1, ..., b*B + (B-1)]` (shape `[B]`, dtype `int64`)
+- `batch_seed`: stateless seed (shape `[2]`, dtype `int32`) derived from:
+  - a resolved base seed (`base_seed`)
+  - the batch id `b` (mixed as 64-bit into the seed via two fold-ins: low32 then high32)
+
+Then it calls your generator:
+
+```py
+samples = batch_generator(indices, batch_seed)
+```
+
+---
+
+## Determinism contract
+
+### What is deterministic
+
+For a fixed `base_seed`, `batch_size`, `num_batches`, and a generator that:
+
+1) uses **only stateless RNG** (e.g. `tf.random.stateless_uniform`) with the provided `seed`, and  
+2) returns a **stable structure** (same keys/dtypes/ranks each call), and  
+3) runs only deterministic kernels for its ops,
+
+then **batch `b` always produces identical tensors** across reruns — regardless of `tf.data` parallelism.
+
+### What can still vary
+
+- **Iteration order** can vary when parallel mapping is enabled unless you set `deterministic_order=True`.
+  - This affects only **the order batches are yielded**, not the values for a given batch id.
+
+### What is not guaranteed
+
+- If your generator uses **stateful RNG** (e.g. `tf.random.uniform`), reproducibility is not guaranteed.
+- GPU / XLA / certain ops may be nondeterministic depending on your TensorFlow build and kernels used.
 
 ---
 
@@ -96,7 +84,7 @@ This class is a good fit for:
   Procedural features/labels generated on-the-fly with reproducibility from a single base seed.
 
 - **Reproducible data augmentation**  
-  Randomized transforms keyed by **batch id**, not by call order, so results are stable across reruns even with `num_parallel_calls`.
+  Randomized transforms keyed by batch id, not by call order, so results are stable across reruns even with `num_parallel_calls`.
 
 - **Simulation-in-the-loop**  
   TF-native simulators / rollouts per batch driven by deterministic per-batch seeds, making outputs traceable across experiments.
@@ -119,15 +107,75 @@ This class is a good fit for:
 
 ---
 
-## API quick reference
+## Minimal usage
 
-Constructor arguments (high-level):
+```python
+import tensorflow as tf
+from mlm8s_gpu import StatelessRngDataset
 
-- `batch_generator(indices, seed) -> nested structure of tensors`  
-  Must be traceable under `tf.function` and should use **stateless RNG** ops.
-- `batch_size`, `num_batches` define dataset shape/length.
-- `base_seed`: `int | (int,int) | None`  
-  If `None`, a random seed is generated and can be retrieved via `resolved_seed_tuple()`.
-- `deterministic_order`: if `True`, `tf.data` will preserve deterministic ordering (slower sometimes).
-- `num_parallel_calls`, `prefetch_buffer`: performance tuning knobs.
-- `xla_compile_generator`: XLA compile generator for speed if beneficial.
+def batch_generator(indices: tf.Tensor, seed: tf.Tensor) -> dict[str, tf.Tensor]:
+    # indices: [B] int64, seed: [2] int32
+    B = tf.shape(indices)[0]
+    x = tf.random.stateless_uniform([B, 32], seed=seed, dtype=tf.float32)
+    y = tf.cast(tf.reduce_sum(x, axis=-1) > 16.0, tf.int32)
+    return {"x": x, "y": y, "idx": indices}
+
+factory = StatelessRngDataset(
+    batch_generator=batch_generator,
+    batch_size=256,
+    num_batches=1000,
+    base_seed=(123, 456),             # int | (int,int) | None
+    deterministic_order=True,         # stable output order
+    num_parallel_calls=tf.data.AUTOTUNE,
+    prefetch_buffer=tf.data.AUTOTUNE,
+    xla_compile_generator=True,
+)
+
+ds = factory.as_dataset()
+
+for batch in ds.take(1):
+    print(batch["x"].shape, batch["y"].shape)
+```
+
+---
+
+## Logging runs when `base_seed=None`
+
+If `base_seed=None`, the factory picks a random 2x32-bit seed once. You can retrieve it and log it:
+
+```python
+factory = StatelessRngDataset(..., base_seed=None)
+print("resolved seed:", factory.resolved_seed_tuple())
+```
+
+Re-run later using `base_seed=factory.resolved_seed_tuple()`.
+
+---
+
+## API
+
+### Constructor fields (with defaults)
+
+Required:
+- `batch_generator: Callable[[indices, seed], Any]`
+- `batch_size: int` (must be > 0)
+- `num_batches: int` (must be >= 0)
+- `base_seed: int | (int, int) | None`
+
+Optional:
+- `deterministic_order: bool = False`
+- `num_parallel_calls = tf.data.AUTOTUNE`
+- `prefetch_buffer = tf.data.AUTOTUNE`
+- `xla_compile_generator: bool = True`
+- `generator_device: str | None = None`
+- `threading_private_threadpool_size: int | None = None`
+- `threading_max_intra_op_parallelism: int | None = None`
+- `assert_cardinality: bool = True`
+
+### Methods
+
+- `as_dataset() -> tf.data.Dataset`
+- `resolved_seed_tuple() -> tuple[int, int]`  *(useful when `base_seed=None`)*
+- `base_seed_tensor() -> tf.Tensor`  *(shape `[2]`, dtype `int32`)*
+- `num_examples -> int`  *(equals `batch_size * num_batches`)*
+
