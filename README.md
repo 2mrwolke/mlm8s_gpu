@@ -52,30 +52,6 @@ samples = batch_generator(indices, batch_seed)
 
 ---
 
-## Determinism contract
-
-### What is deterministic
-
-For a fixed `base_seed`, `batch_size`, `num_batches`, and a generator that:
-
-1) uses **only stateless RNG** (e.g. `tf.random.stateless_uniform`) with the provided `seed`, and  
-2) returns a **stable structure** (same keys/dtypes/ranks each call), and  
-3) runs only deterministic kernels for its ops,
-
-then **batch `b` always produces identical tensors** across reruns — regardless of `tf.data` parallelism.
-
-### What can still vary
-
-- **Iteration order** can vary when parallel mapping is enabled unless you set `deterministic_order=True`.
-  - This affects only **the order batches are yielded**, not the values for a given batch id.
-
-### What is not guaranteed
-
-- If your generator uses **stateful RNG** (e.g. `tf.random.uniform`), reproducibility is not guaranteed.
-- GPU / XLA / certain ops may be nondeterministic depending on your TensorFlow build and kernels used.
-
----
-
 ## Enabled patterns
 
 This class is a good fit for:
@@ -136,6 +112,30 @@ ds = factory.as_dataset()
 for batch in ds.take(1):
     print(batch["x"].shape, batch["y"].shape)
 ```
+
+---
+
+## Determinism contract
+
+### What is deterministic
+
+For a fixed `base_seed`, `batch_size`, `num_batches`, and a generator that:
+
+1) uses **only stateless RNG** (e.g. `tf.random.stateless_uniform`) with the provided `seed`, and  
+2) returns a **stable structure** (same keys/dtypes/ranks each call), and  
+3) runs only deterministic kernels for its ops,
+
+then **batch `b` always produces identical tensors** across reruns — regardless of `tf.data` parallelism.
+
+### What can still vary
+
+- **Iteration order** can vary when parallel mapping is enabled unless you set `deterministic_order=True`.
+  - This affects only **the order batches are yielded**, not the values for a given batch id.
+
+### What is not guaranteed
+
+- If your generator uses **stateful RNG** (e.g. `tf.random.uniform`), reproducibility is not guaranteed.
+- GPU / XLA / certain ops may be nondeterministic depending on your TensorFlow build and kernels used.
 
 ---
 
