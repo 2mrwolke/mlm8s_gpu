@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+# Setuptools >=77 enables SPDX license expressions + project.license-files (PEP 639).
+requires = ["setuptools>=77.0.3", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +9,11 @@ version = "0.1.0"
 description = "GPU-accelerated prototyping utilities (TensorFlow)"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { file = "LICENSE" }
+
+# PEP 639 / SPDX
+license = "GPL-3.0-only"
+license-files = ["LICENSE*"]
+
 keywords = ["tensorflow", "tf.data", "stateless", "rng", "reproducibility", "gpu"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -27,11 +32,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Tooling
 dev = [
   "pytest>=7",
   "ruff>=0.5",
 ]
 
+gpu-linux = [
+  "tensorflow[and-cuda]>=2.12",
+]
+
+gpu-macos = [
+  "tensorflow-metal",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
